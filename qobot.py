@@ -3,10 +3,18 @@ import dotenv
 import os
 import aiosqlite
 import asyncio
+import logging
 from discord.ext import tasks, commands
-import discord.utils as utils
-from discord.utils import MISSING
 
+from logging.handlers import TimedRotatingFileHandler
+
+log_handler = TimedRotatingFileHandler('qobot.log', encoding="utf8", when="d", interval=7, backupCount=3)
+log_handler.setFormatter(logging.Formatter('[%(asctime)s][%(name)s][%(levelname)s] %(message)s'))
+
+logger = logging.getLogger()
+logger.addHandler(log_handler)
+logger.setLevel(logging.INFO)
+logger.info("Application Started")
 
 dotenv.load_dotenv()
 
@@ -18,7 +26,7 @@ async def get_db():
 
 
 async def init_db():
-    db = await get_db
+    db = await get_db()
     try:
         await db.execute('''CREATE TABLE IF NOT EXISTS users_in_role (user TEXT, date TEXT)''')
         await db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS users_in_role_user_idx ON users_in_role(user)''')
@@ -28,11 +36,13 @@ async def init_db():
 
 
 async def remove_from_db(db, user):
+    logger.info(f"Removing user {user} from DB.")
     await db.execute('''DELETE FROM users_in_role WHERE user = ?''', (user,))
     await db.commit()
 
 
 async def add_user_to_db(db, user):
+    logger.info(f"Adding user {user} to DB.")
     await db.execute('''INSERT INTO users_in_role (user, date) VALUES (?, datetime())''', (user,))
     await db.commit()
 
@@ -87,6 +97,7 @@ class ProbationCog(commands.Cog):
 
     @tasks.loop(minutes=15.0)
     async def scan_users(self):
+        logger.info("Scanning for missing role changes.")
         for guild in self.bot.guilds:
             try:
                 role = await guild.fetch_role(role_id_monitored)
@@ -99,21 +110,22 @@ class ProbationCog(commands.Cog):
     async def before_scan_users(self):
         await self.bot.wait_until_ready()
     
-    @tasks.loop(minutes=1.0)
+    @tasks.loop(minutes=60.0)
     async def promote_users(self):
+        logger.info("Entering promotion loop.")
         ready_users = await get_ready_users()
-        print(f"Got {len(ready_users)} users: {ready_users}")
+        logger.info(f"Got {len(ready_users)} users: {ready_users}")
         if len(ready_users) < 1:
             return
         for guild in self.bot.guilds:
             try:
                 role = await guild.fetch_role(role_id_monitored)
                 target_role = await guild.fetch_role(role_id_validated)
-                print(f"Found roles {role} and {target_role}")
-                print(f"Role members: {role.members}")
+                logger.debug(f"Found roles {role} and {target_role}")
+                logger.debug(f"Role members: {role.members}")
                 for member in role.members:
                     for user_id in ready_users:
-                        print(f"User id: {user_id} and member_id: {member.id}")
+                        logger.debug(f"User id: {user_id} and member_id: {member.id}")
                         if member.id == user_id:
                             await member.remove_roles(role)
                             await member.add_roles(target_role)
@@ -141,7 +153,7 @@ bot = commands.Bot('!!', intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f'We have logged in as {bot.user}')
+    logger.info(f'We have logged in as {bot.user}')
 
 @bot.event
 async def on_member_update(before, after):
@@ -174,16 +186,9 @@ async def on_member_update(before, after):
 def main():
     async def runner():
         async with bot:
-            
+            await init_db()
             await bot.add_cog(ProbationCog(bot))
             await bot.start(os.getenv("TOKEN"), reconnect=True)
-
-    utils.setup_logging(
-        handler=MISSING,
-        formatter=MISSING,
-        level=MISSING,
-        root=False,
-    )
 
     try:
         asyncio.run(runner())
