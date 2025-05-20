@@ -1,4 +1,5 @@
 .env
 qobot.sqlite3
 qobot.log
+qobot.log*
 .venv
