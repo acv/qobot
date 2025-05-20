@@ -127,6 +127,7 @@ class ProbationCog(commands.Cog):
                     for user_id in ready_users:
                         logger.debug(f"User id: {user_id} and member_id: {member.id}")
                         if member.id == user_id:
+                            logger.info(f"Updating user {user_id} with roles.")
                             await member.remove_roles(role)
                             await member.add_roles(target_role)
                             db = await get_db()
