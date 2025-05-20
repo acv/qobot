@@ -13,7 +13,7 @@ log_handler.setFormatter(logging.Formatter('[%(asctime)s][%(name)s][%(levelname)
 
 logger = logging.getLogger()
 logger.addHandler(log_handler)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger.info("Application Started")
 
 dotenv.load_dotenv()
@@ -30,7 +30,7 @@ async def init_db():
     try:
         await db.execute('''CREATE TABLE IF NOT EXISTS users_in_role (user TEXT, date TEXT)''')
         await db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS users_in_role_user_idx ON users_in_role(user)''')
-        await db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS users_in_role_date_idx ON users_in_role(date)''')
+        await db.execute('''CREATE INDEX IF NOT EXISTS users_in_role_date_idx ON users_in_role(date)''')
     finally:
         await db.close()
 
